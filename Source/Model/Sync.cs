@@ -22,19 +22,60 @@ namespace SimpleBackgroundFileSync.Model
 
 		private volatile bool _threadStop = false;
 		private volatile bool _threadForce = false;
+		private volatile bool _threadForceSingle = false;
+		private volatile string _threadForcePath = null;
 
-		private volatile List<SyncState> _entries;
+		private volatile List<SyncState> _entries = new List<SyncState>();
 
 		public Sync(Program prog, NotifyIcon icon)
 		{
 			_icon = icon;
 			_owner = prog;
 			
-			Config.Reload();
-			_entries = Config.Entries.Select(p => new SyncState(p)).ToList();
-			UpdateDisplay(true);
+			Reload();
 		}
 
+		private void Reload()
+		{
+			lock (_threadLock)
+			{
+				Config.Reload();
+				foreach (var e in _entries) e.Watcher?.Dispose();
+
+				_entries = Config.Entries.Select(p => new SyncState(p)).ToList();
+				foreach (var e in _entries)
+				{
+					if (e.Config.UseFilewatcher)
+					{
+						e.Watcher = new FileSystemWatcher(Path.GetDirectoryName(e.Config.Source));
+						
+						e.Watcher.NotifyFilter = NotifyFilters.LastAccess | NotifyFilters.LastWrite | NotifyFilters.CreationTime;
+						e.Watcher.Changed += (ps, pe) =>
+						{
+							Debug.WriteLine($"FileWatcher->Changed({pe.FullPath})");
+							if (Path.GetFullPath(e.Config.Source) == Path.GetFullPath(pe.FullPath))
+							{
+								Debug.WriteLine($"FileWatcher->Changed->Done({e.Config.Source})");
+								ForceSyncSingle(e.Config.Source);
+							}
+						};
+						e.Watcher.Created += (ps, pe) =>
+						{
+							Debug.WriteLine($"FileWatcher->Created({pe.FullPath})");
+							if (Path.GetFullPath(e.Config.Source) == Path.GetFullPath(pe.FullPath))
+							{
+								Debug.WriteLine($"FileWatcher->Changed->Done({e.Config.Source})");
+								ForceSyncSingle(e.Config.Source);
+							}
+						};
+						e.Watcher.EnableRaisingEvents = true;
+					}
+				}
+
+				UpdateDisplay(true);
+			}
+		}
+		
 		private void UpdateDisplay(bool updateContextMenu)
 		{
 			Debug.WriteLine($"UpdateDisplay({updateContextMenu})");
@@ -80,12 +121,7 @@ namespace SimpleBackgroundFileSync.Model
 		{
 			Debug.WriteLine($"Reload()");
 
-			lock (_threadLock)
-			{
-				Config.Reload();
-				_entries = Config.Entries.Select(p => new SyncState(p)).ToList();
-				UpdateDisplay(true);
-			}
+			Reload();
 		}
 
 		private void ForceSync(object sender, EventArgs e)
@@ -93,6 +129,21 @@ namespace SimpleBackgroundFileSync.Model
 			Debug.WriteLine($"ForceSync()");
 
 			_threadForce = true;
+
+			lock (_threadLock)
+			{
+				Monitor.Enter(_threadMonitor);
+				Monitor.PulseAll(_threadMonitor);
+				Monitor.Exit(_threadMonitor);
+			}
+		}
+
+		private void ForceSyncSingle(string p)
+		{
+			Debug.WriteLine($"ForceSyncSingle({p})");
+
+			_threadForceSingle = true;
+			_threadForcePath = p;
 
 			lock (_threadLock)
 			{
@@ -146,7 +197,7 @@ namespace SimpleBackgroundFileSync.Model
 
 						_icon.Icon = Resources.icon_sync;
 
-						DoSync(_threadForce || force);
+						DoSync(_threadForce || force, _threadForceSingle, _threadForcePath);
 						Thread.Sleep(1000);
 
 						UpdateDisplay(true);
@@ -166,9 +217,9 @@ namespace SimpleBackgroundFileSync.Model
 			}
 		}
 
-		private bool DoSync(bool force)
+		private bool DoSync(bool force, bool forceSingle, string forceSinglePath)
 		{
-			Debug.WriteLine($"DoSync({force})");
+			Debug.WriteLine($"DoSync({force}, {forceSingle}, '{forceSinglePath}')");
 
 			var changed = false;
 
@@ -176,7 +227,7 @@ namespace SimpleBackgroundFileSync.Model
 			{
 				if (_threadStop) return changed;
 
-				if (!force)
+				if (!force && !(forceSingle && entry.Config.Source == forceSinglePath))
 				{
 					var delta = DateTime.Now - entry.LastTest;
 					if (delta < TimeSpan.FromSeconds(entry.Config.Interval)) continue;

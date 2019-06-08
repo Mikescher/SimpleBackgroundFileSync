@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 
 namespace SimpleBackgroundFileSync.Model
 {
@@ -10,6 +11,8 @@ namespace SimpleBackgroundFileSync.Model
 		public DateTime LastCopy;
 
 		public SyncStateEnum State;
+
+		public FileSystemWatcher Watcher;
 
 		public SyncState(ConfigEntry e)
 		{
