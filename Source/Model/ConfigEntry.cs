@@ -10,8 +10,9 @@
 		public readonly CompareMode Comparison;
 
 		public readonly ErrorMode ModeSourceNotFound;
+		public readonly ErrorMode ModeCopyFail;
 
-		public ConfigEntry(string src, string dst, int iv, bool fw, CompareMode cm, ErrorMode snf)
+		public ConfigEntry(string src, string dst, int iv, bool fw, CompareMode cm, ErrorMode snf, ErrorMode cf)
 		{
 			Source = src;
 			Target = dst;
@@ -19,6 +20,7 @@
 			UseFilewatcher = fw;
 			Comparison = cm;
 			ModeSourceNotFound = snf;
+			ModeCopyFail = cf;
 		}
 	}
 }

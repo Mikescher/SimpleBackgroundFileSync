@@ -126,36 +126,43 @@ namespace SimpleBackgroundFileSync.Model
 
 		private void Run()
 		{
-			Debug.WriteLine($"Run()");
-
-			Monitor.Enter(_threadMonitor);
-			Monitor.Wait(_threadMonitor, 3_000);
-			Monitor.Exit(_threadMonitor);
-
-			for (var force=true;;force=false)
+			try
 			{
-				Debug.WriteLine($"Run->Loop()");
+				Debug.WriteLine($"Run()");
 
-				lock (_threadLock)
-				{
-					Debug.WriteLine($"Run->Loop->Lock()");
-
-					if (_threadStop) return;
-
-					_icon.Icon = Resources.icon_sync;
-
-					DoSync(_threadForce || force);
-					Thread.Sleep(1000);
-
-					UpdateDisplay(true);
-				}
-				
-				var mst = Math.Min(60 * 5, Config.Entries.Min(e => e.Interval) / 3);
-				
 				Monitor.Enter(_threadMonitor);
-				Debug.WriteLine($"Run->Loop->Wait()");
-				Monitor.Wait(_threadMonitor, 1000 * mst);
+				Monitor.Wait(_threadMonitor, 3_000);
 				Monitor.Exit(_threadMonitor);
+
+				for (var force=true;;force=false)
+				{
+					Debug.WriteLine($"Run->Loop()");
+
+					lock (_threadLock)
+					{
+						Debug.WriteLine($"Run->Loop->Lock()");
+
+						if (_threadStop) return;
+
+						_icon.Icon = Resources.icon_sync;
+
+						DoSync(_threadForce || force);
+						Thread.Sleep(1000);
+
+						UpdateDisplay(true);
+					}
+				
+					var mst = Math.Min(60 * 5, Config.Entries.Min(e => e.Interval) / 3);
+				
+					Monitor.Enter(_threadMonitor);
+					Debug.WriteLine($"Run->Loop->Wait()");
+					Monitor.Wait(_threadMonitor, 1000 * mst);
+					Monitor.Exit(_threadMonitor);
+				}
+			}
+			catch (Exception e)
+			{
+				MessageBox.Show(e.ToString(), "Application Error");
 			}
 		}
 
@@ -195,26 +202,44 @@ namespace SimpleBackgroundFileSync.Model
 		{
 			Debug.WriteLine($"DoSync({entry.Config.Target})");
 
-			if (!File.Exists(entry.Config.Source))
+			try
 			{
-				     if (entry.Config.ModeSourceNotFound == ErrorMode.ERROR)  entry.State = SyncStateEnum.ERROR;
-				else if (entry.Config.ModeSourceNotFound == ErrorMode.WARN)   entry.State = SyncStateEnum.WARNING;
-				else if (entry.Config.ModeSourceNotFound == ErrorMode.IGNORE) entry.State = SyncStateEnum.OK;
+				if (!File.Exists(entry.Config.Source))
+				{
+					if (entry.Config.ModeSourceNotFound == ErrorMode.ERROR)  entry.State = SyncStateEnum.ERROR;
+					else if (entry.Config.ModeSourceNotFound == ErrorMode.WARN)   entry.State = SyncStateEnum.WARNING;
+					else if (entry.Config.ModeSourceNotFound == ErrorMode.IGNORE) entry.State = SyncStateEnum.OK;
 
-				return true;
-			}
+					return true;
+				}
 
-			if (ShouldSync(entry))
-			{
-				Debug.WriteLine($"DoSync->Copy({entry.Config.Target})");
-				File.Copy(entry.Config.Source, entry.Config.Target, true);
-				entry.LastCopy = DateTime.Now;
+				if (ShouldSync(entry))
+				{
+					Debug.WriteLine($"DoSync->Copy({entry.Config.Target})");
+					try
+					{
+						File.Copy(entry.Config.Source, entry.Config.Target, true);
+					}
+					catch (Exception)
+					{
+						if (entry.Config.ModeCopyFail == ErrorMode.ERROR)  entry.State = SyncStateEnum.ERROR;
+						if (entry.Config.ModeCopyFail == ErrorMode.WARN)   entry.State = SyncStateEnum.WARNING;
+						if (entry.Config.ModeCopyFail == ErrorMode.IGNORE) entry.State = SyncStateEnum.OK;
+						return true;
+					}
+					entry.LastCopy = DateTime.Now;
+					entry.State = SyncStateEnum.OK;
+					return true;
+				}
+
 				entry.State = SyncStateEnum.OK;
+				return false;
+			}
+			catch (Exception)
+			{
+				entry.State = SyncStateEnum.ERROR;
 				return true;
 			}
-
-			entry.State = SyncStateEnum.OK;
-			return false;
 		}
 
 		private bool ShouldSync(SyncState entry)
