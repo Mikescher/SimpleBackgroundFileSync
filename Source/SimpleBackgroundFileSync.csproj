@@ -7,7 +7,7 @@
     <ProjectGuid>{FEBD699E-DD9E-48A8-ADDE-4AD674AC2029}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>SimpleBackgroundFileSync</RootNamespace>
-    <AssemblyName>SimpleBackgroundFileSync</AssemblyName>
+    <AssemblyName>SBFS</AssemblyName>
     <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
