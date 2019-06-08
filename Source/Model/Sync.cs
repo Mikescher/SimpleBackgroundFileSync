@@ -129,10 +129,10 @@ namespace SimpleBackgroundFileSync.Model
 		{
 			Debug.WriteLine($"ForceSync()");
 
-			_threadForce = true;
-
 			lock (_threadLock)
 			{
+				_threadForce = true;
+
 				Monitor.Enter(_threadMonitor);
 				Monitor.PulseAll(_threadMonitor);
 				Monitor.Exit(_threadMonitor);
@@ -143,11 +143,11 @@ namespace SimpleBackgroundFileSync.Model
 		{
 			Debug.WriteLine($"ForceSyncSingle({p})");
 
-			_threadForceSingle = true;
-			_threadForcePath = p;
-
 			lock (_threadLock)
 			{
+				_threadForceSingle = true;
+				_threadForcePath = p;
+
 				Monitor.Enter(_threadMonitor);
 				Monitor.PulseAll(_threadMonitor);
 				Monitor.Exit(_threadMonitor);
@@ -207,12 +207,15 @@ namespace SimpleBackgroundFileSync.Model
 						_icon.Icon = Resources.icon_sync;
 
 						DoSync(_threadForce || force, _threadForceSingle, _threadForcePath);
+						_threadForce = false;
+						_threadForceSingle = false;
+						_threadForcePath = null;
 						Thread.Sleep(1000);
 
 						UpdateDisplay(true);
 					}
 				
-					var mst = Math.Min(60 * 5, Config.Entries.Min(e => e.Interval) / 3);
+					var mst = Math.Min(60 * 5, Config.Entries.Min(e => e.Interval) / 2);
 				
 					Monitor.Enter(_threadMonitor);
 					Debug.WriteLine($"Run->Loop->Wait()");
@@ -240,6 +243,10 @@ namespace SimpleBackgroundFileSync.Model
 				{
 					var delta = DateTime.Now - entry.LastTest;
 					if (delta < TimeSpan.FromSeconds(entry.Config.Interval)) continue;
+				}
+				else
+				{
+					Debug.WriteLine($"DoSync->Forced(('{entry.Config.Source}'))");
 				}
 
 				try
