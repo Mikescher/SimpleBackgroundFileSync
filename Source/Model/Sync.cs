@@ -101,6 +101,7 @@ namespace SimpleBackgroundFileSync.Model
 					mi.Enabled = false;
 				}
 				trayMenu.MenuItems.Add("-");
+				trayMenu.MenuItems.Add("About", OnAbout);
 				trayMenu.MenuItems.Add("Exit", OnExit);
 
 				_icon.ContextMenu = trayMenu;
@@ -151,6 +152,14 @@ namespace SimpleBackgroundFileSync.Model
 				Monitor.PulseAll(_threadMonitor);
 				Monitor.Exit(_threadMonitor);
 			}
+		}
+
+		private void OnAbout(object sender, EventArgs e)
+		{
+			Debug.WriteLine($"OnAbout()");
+
+			
+			Process.Start(Program.ABOUT_URL);
 		}
 
 		private void OnExit(object sender, EventArgs e)

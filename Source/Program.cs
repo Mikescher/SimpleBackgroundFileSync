@@ -7,8 +7,10 @@ namespace SimpleBackgroundFileSync
 {
 	public class Program : Form
 	{
-		private const string NAME = @"SimpleBackgroundFileSync";
-		private const string VERSION = @"1.0";
+		public const string NAME = @"SimpleBackgroundFileSync";
+		public const string VERSION = @"1.0";
+		
+		public const string ABOUT_URL = @"https://www.mikescher.com";
 
 		private readonly NotifyIcon _trayIcon;
 
