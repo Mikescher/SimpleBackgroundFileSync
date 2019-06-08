@@ -9,10 +9,10 @@ Create a config file in `%appdata%\SBFS\config.xml`
 ~~~~~~~~~~~~~~~xml
 <?xml version="1.0" encoding="UTF-8"?>
 <config>
-    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." filewatcher="..." />
-    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." filewatcher="..." />
-    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." filewatcher="..." />
-    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." filewatcher="..." />
+    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." fileevents="..." />
+    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." fileevents="..." />
+    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." fileevents="..." />
+    <file source="..." target="..." compare="..." interval="..." source_not_found="..." copy_fail="..." fileevents="..." />
 </config>
 ~~~~~~~~~~~~~~~
 
@@ -24,4 +24,4 @@ Create a config file in `%appdata%\SBFS\config.xml`
  - `interval` Interval to check in seconds
  - `source_not_found` Action to do when source file is not found (`error`, `warn`, `ignore`)
  - `copy_fail` Action to do when the copy action fails (`error`, `warn`, `ignore`)
- - `filewatcher` Use Filewatcher to react faster on file changes (`true`, `false`)
+ - `fileevents` Use a Filewatcher to react faster on file changes (`true`, `false`)
