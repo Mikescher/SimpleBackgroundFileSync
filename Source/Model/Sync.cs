@@ -37,45 +37,79 @@ namespace SimpleBackgroundFileSync.Model
 
 		private void Reload()
 		{
+			Debug.WriteLine($"Reload()");
+
 			lock (_threadLock)
 			{
-				Config.Reload();
-				foreach (var e in _entries) e.Watcher?.Dispose();
-
-				_entries = Config.Entries.Select(p => new SyncState(p)).ToList();
-				foreach (var e in _entries)
+				try
 				{
-					if (e.Config.UseFilewatcher)
+					Config.Reload();
+					foreach (var e in _entries)
 					{
-						e.Watcher = new FileSystemWatcher(Path.GetDirectoryName(e.Config.Source));
-						
-						e.Watcher.NotifyFilter = NotifyFilters.LastAccess | NotifyFilters.LastWrite | NotifyFilters.CreationTime;
-						e.Watcher.Changed += (ps, pe) =>
-						{
-							Debug.WriteLine($"FileWatcher->Changed({pe.FullPath})");
-							if (Path.GetFullPath(e.Config.Source) == Path.GetFullPath(pe.FullPath))
-							{
-								Debug.WriteLine($"FileWatcher->Changed->Done({e.Config.Source})");
-								ForceSyncSingle(e.Config.Source);
-							}
-						};
-						e.Watcher.Created += (ps, pe) =>
-						{
-							Debug.WriteLine($"FileWatcher->Created({pe.FullPath})");
-							if (Path.GetFullPath(e.Config.Source) == Path.GetFullPath(pe.FullPath))
-							{
-								Debug.WriteLine($"FileWatcher->Changed->Done({e.Config.Source})");
-								ForceSyncSingle(e.Config.Source);
-							}
-						};
-						e.Watcher.EnableRaisingEvents = true;
+						if (e.Watcher != null) e.Watcher.EnableRaisingEvents = false;
+						e.Watcher?.Dispose();
 					}
-				}
 
-				UpdateDisplay(true);
+					_entries = Config.Entries.Select(p => new SyncState(p)).ToList();
+					foreach (var e in _entries)
+					{
+						if (e.Config.UseFilewatcher)
+						{
+							TryInitFileWatcher(e);
+						}
+					}
+
+					UpdateDisplay(true);
+				}
+				catch (Exception e)
+				{
+					MessageBox.Show(e.ToString(), "Application Error");
+				}
 			}
 		}
-		
+
+		private void TryInitFileWatcher(SyncState ss)
+		{
+			Debug.WriteLine($"TryInitFileWatcher('{ss.Config.Source}')");
+
+			if (ss.Watcher != null) ss.Watcher.EnableRaisingEvents = false;
+
+			try
+			{
+				ss.Watcher = new FileSystemWatcher(Path.GetDirectoryName(ss.Config.Source));
+			}
+			catch (ArgumentException e)
+			{
+				Debug.WriteLine($"TryInitFileWatcher->Postpone({e.GetType().Name}, {e.Message})");
+				ss.Watcher = null;
+				ss.WatcherInitPostponed = true;
+				return;
+			}
+			
+			ss.WatcherInitPostponed = false;
+
+			ss.Watcher.NotifyFilter = NotifyFilters.LastAccess | NotifyFilters.LastWrite | NotifyFilters.CreationTime;
+			ss.Watcher.Changed += (ps, pe) =>
+			{
+				Debug.WriteLine($"FileWatcher->Changed({pe.FullPath})");
+				if (Path.GetFullPath(ss.Config.Source) == Path.GetFullPath(pe.FullPath))
+				{
+					Debug.WriteLine($"FileWatcher->Changed->Done({ss.Config.Source})");
+					ForceSyncSingle(ss.Config.Source);
+				}
+			};
+			ss.Watcher.Created += (ps, pe) =>
+			{
+				Debug.WriteLine($"FileWatcher->Created({pe.FullPath})");
+				if (Path.GetFullPath(ss.Config.Source) == Path.GetFullPath(pe.FullPath))
+				{
+					Debug.WriteLine($"FileWatcher->Changed->Done({ss.Config.Source})");
+					ForceSyncSingle(ss.Config.Source);
+				}
+			};
+			ss.Watcher.EnableRaisingEvents = true;
+		}
+
 		private void UpdateDisplay(bool updateContextMenu)
 		{
 			Debug.WriteLine($"UpdateDisplay({updateContextMenu})");
@@ -157,7 +191,6 @@ namespace SimpleBackgroundFileSync.Model
 		private void OnAbout(object sender, EventArgs e)
 		{
 			Debug.WriteLine($"OnAbout()");
-
 			
 			Process.Start(Program.ABOUT_URL);
 		}
@@ -267,7 +300,7 @@ namespace SimpleBackgroundFileSync.Model
 
 		private bool DoSyncSingle(SyncState entry)
 		{
-			Debug.WriteLine($"DoSync({entry.Config.Target})");
+			Debug.WriteLine($"DoSyncSingle({entry.Config.Target})");
 
 			try
 			{
@@ -276,22 +309,32 @@ namespace SimpleBackgroundFileSync.Model
 					if (entry.Config.ModeSourceNotFound == ErrorMode.ERROR)  entry.State = SyncStateEnum.ERROR;
 					else if (entry.Config.ModeSourceNotFound == ErrorMode.WARN)   entry.State = SyncStateEnum.WARNING;
 					else if (entry.Config.ModeSourceNotFound == ErrorMode.IGNORE) entry.State = SyncStateEnum.OK;
+					
+					Debug.WriteLine($"DoSyncSingle->FileNotFound()");
 
 					return true;
 				}
 
+				if (entry.Config.UseFilewatcher && entry.WatcherInitPostponed)
+				{
+					Debug.WriteLine($"DoSyncSingle->InitFileWatcher()");
+					TryInitFileWatcher(entry);
+				}
+
 				if (ShouldSync(entry))
 				{
-					Debug.WriteLine($"DoSync->Copy({entry.Config.Target})");
+					Debug.WriteLine($"DoSyncSingle->Copy({entry.Config.Target})");
 					try
 					{
 						File.Copy(entry.Config.Source, entry.Config.Target, true);
 					}
-					catch (Exception)
+					catch (Exception e)
 					{
 						if (entry.Config.ModeCopyFail == ErrorMode.ERROR)  entry.State = SyncStateEnum.ERROR;
 						if (entry.Config.ModeCopyFail == ErrorMode.WARN)   entry.State = SyncStateEnum.WARNING;
 						if (entry.Config.ModeCopyFail == ErrorMode.IGNORE) entry.State = SyncStateEnum.OK;
+						
+						Debug.WriteLine($"DoSyncSingle->CopyException({e.GetType().Name}, {e.Message})");
 						return true;
 					}
 					entry.LastCopy = DateTime.Now;
@@ -302,8 +345,10 @@ namespace SimpleBackgroundFileSync.Model
 				entry.State = SyncStateEnum.OK;
 				return false;
 			}
-			catch (Exception)
+			catch (Exception e)
 			{
+				Debug.WriteLine($"DoSyncSingle->Exception({e.GetType().Name}, {e.Message})");
+
 				entry.State = SyncStateEnum.ERROR;
 				return true;
 			}

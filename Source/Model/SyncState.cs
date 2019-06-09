@@ -13,6 +13,7 @@ namespace SimpleBackgroundFileSync.Model
 		public SyncStateEnum State;
 
 		public FileSystemWatcher Watcher;
+		public bool WatcherInitPostponed = false;
 
 		public SyncState(ConfigEntry e)
 		{
